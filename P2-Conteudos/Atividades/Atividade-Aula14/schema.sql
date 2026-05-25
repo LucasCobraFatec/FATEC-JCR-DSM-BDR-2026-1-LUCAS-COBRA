@@ -1,109 +1,127 @@
-CREATE TABLE Autor (
-id_autor SERIAL PRIMARY KEY,
-nome VARCHAR(100) NOT NULL
-);
-INSERT INTO Autor (nome)
-VALUES
-('J. R. R. Tolkien'),
-('Machado de Assis'),
-('Clarice Lispector'),
-('J.K. Rowling');
-CREATE TABLE Livro (
-id_livro SERIAL PRIMARY KEY,
-titulo VARCHAR(150) NOT NULL,
-ano_publicacao INTEGER,
-id_autor INTEGER REFERENCES Autor(id_autor),
-id_editora INTEGER
-);
-INSERT INTO Livro (titulo, ano_publicacao, id_autor, id_editora)
-VALUES
-('O Senhor dos Anéis', 1954, 1, NULL),
-('Dom Casmurro', 1899, 2, 2),
-('A Hora da Estrela', 1977, 3, 3),
-('O Hobbit', 1937, 1, 1);
-ALTER TABLE livro ADD COLUMN num_paginas INT;
-UPDATE livro SET num_paginas= 1568 WHERE titulo = 'O Senhor dos Anéis';
-UPDATE livro SET num_paginas= 208 WHERE titulo = 'Dom Casmurro';
-UPDATE livro SET num_paginas= 88 WHERE titulo = 'A Hora da Estrela';
-UPDATE livro SET num_paginas= 336 WHERE titulo = 'O Hobbit';
+--Exercicio 1 --
+
+CREATE OR REPLACE PROCEDURE inserir_livro_condicao(p_id_autor INT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	IF NOT EXISTS (SELECT 1 FROM autor WHERE id_autor = p_id_autor) THEN
+	RAISE EXCEPTION 'Autor não cadastrado';
+END IF;
+INSERT INTO 
+	livro(titulo,ano_publicacao,id_autor,id_editora,num_paginas)
+	VALUES(p_titulo,p_ano,p_id_autor,p_id_editora,p_paginas);
+	END;
+
+CALL inserir_livro_condicao('Memórias Póstumas', 1881, 2, 2, 240);
+CALL inserir_livro_condicao('Livro Órfão', 2026, 99, NULL, 150);
+
+--Exerciocio 2
+
+
+CREATE OR REPLACE PROCEDURE atualizar_paginas_att(p_id_livro INT, p_paginas INT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    
+    IF p_paginas <= 10 THEN
+        RAISE EXCEPTION 'Só é permitido livros com mais de 10 páginas'; 
+    END IF;
+
+  
+    UPDATE livro
+    SET num_paginas = p_paginas
+    WHERE id_livro = p_id_livro;
+END;
+$$;
+
+
+CALL atualizar_paginas_att(3, 95); 
+CALL atualizar_paginas_att(3, 5); 
+
+
+--Exercicio 3
+
+
+CREATE OR REPLACE PROCEDURE exclur_autor_sem_livros(p_id_autor INT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM livro WHERE id_autor = p_id_autor) THEN
+	RAISE EXCEPTION 'Não é possível excluir o autor pois ele possui livros cadastrados.';
+END IF;
+
+	DELETE FROM autor WHERE id_autor = p_id_autor;
+END;
+$$;
+
+CALL exclur_autor_sem_livros(1);
+
+--Exericio 4
+
+CREATE OR REPLACE FUNCTION obter_media_autor(p_id_autor INT)
+RETURNS TABLE (
+    nome_autor VARCHAR,
+    media_paginas NUMERIC
+) 
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY 
+    SELECT 
+        autor.nome, 
+        AVG(livro.num_paginas)
+    FROM autor 
+    JOIN livro ON autor.id_autor = livro.id_autor
+    WHERE autor.id_autor = p_id_autor
+    GROUP BY autor.nome;
+END;
+$$;
+
+SELECT * FROM obter_media_autor(1);
 
 
 
-
-SELECT nome FROM autor 	WHERE EXISTS (	SELECT 1 FROM livro where livro.id_autor = autor.id_autor);
-
-
-SELECT autor.nome, ROUND(AVG(livro.num_paginas),2) AS media_paginas
-FROM autor JOIN livro ON livro.id_autor = autor.id_autor GROUP BY autor.nome;
-
-CREATE VIEW  vw_media_paginas_autor AS
-SELECT autor.nome, ROUND(AVG(livro.num_paginas),2) AS media_paginas
-FROM autor JOIN livro ON livro.id_autor = autor.id_autor GROUP BY autor.nome;
+--exericio 5
 
 
-SELECT *  FROM vw_media_paginas_autor;
+CREATE OR REPLACE PROCEDURE inserir_livro_5(
+    p_titulo VARCHAR,
+    p_ano INT,
+    p_id_autor INT,
+    p_id_editora INT,
+    p_paginas INT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    
+    IF p_titulo IS NULL OR TRIM(p_titulo) = '' THEN
+        RAISE EXCEPTION 'Erro: O título do livro não pode ser vazio ou nulo!';
+    END IF;
+
+   
+    IF p_paginas IS NULL OR p_paginas <= 0 THEN
+        RAISE EXCEPTION 'Erro: O número de páginas deve ser maior que zero!';
+    END IF;
+
+  
+    IF NOT EXISTS (SELECT 1 FROM Autor WHERE id_autor = p_id_autor) THEN
+        RAISE EXCEPTION 'Erro: O autor informado (ID %) não existe no sistema!', p_id_autor;
+    END IF;
+
+    
+    INSERT INTO Livro (titulo, ano_publicacao, id_autor, id_editora, num_paginas)
+    VALUES (p_titulo, p_ano, p_id_autor, p_id_editora, p_paginas);
+    
+END;
+$$;
+
+CALL inserir_livro_5('O Silmarillion', 1977, 1, NULL, 365);
+CALL inserir_livro_5('', 2026, 1, NULL, 150);
+CALL inserir_livro_5('Livro Teste', 2026, 1, NULL, -5);
+
+--exericio 6
+
+CALL inserir_livro_5('O Silmarillion', 1977, 1, NULL, -15);
 
 
-CREATE VIEW vw_total_livros_autor AS
-SELECT autor.nome,
-	COUNT (livro.id_livro) AS total_livros FROM autor
-	LEFT JOIN livro ON livro.id_autor = autor.id_autor
-	GROUP BY autor.nome;
-
-
-SELECT * FROM vw_total_livros_autor;
-
-
-
-
-CREATE VIEW vw_maior_livro_autor AS
-SELECT autor.nome,
-	MAX(livro.num_paginas)AS maior_livro FROM autor
-	JOIN livro ON livro.id_autor = autor.id_autor
-	GROUP BY autor.nome;
-
-SELECT * FROM vw_maior_livro_autor;
-	
-
-
-exericio 1
-
-CREATE VIEW vw_titulo_numero_paginas AS 
-SELECT titulo , num_paginas FROM livro;
-
-
-SELECT * FROM vw_titulo_numero_paginas;
-
-
-exericio 2
-CREATE VIEW vw_autor_mais_de_1_livro AS
-SELECT nome , COUNT(id_livro) FROM autor JOIN livro ON autor.id_autor = livro.id_autor GROUP BY nome HAVING COUNT(id_livro)>1;
-
-
-SELECT * FROM vw_autor_mais_de_1_livro;
-
-exericio 3
-
-CREATE VIEW vw_media_paginas AS
-SELECT titulo FROM livro WHERE num_paginas > (SELECT AVG(num_paginas) from livro);
-
-
-SELECT * FROM vw_media_paginas;
-
-
-
-exericio 4
-
-CREATE VIEW vw_detalhes_livros AS
-SELECT autor.nome , titulo , ano_publicacao FROM autor JOIN livro ON autor.id_autor = livro.id_autor;
-
-  SELECT * FROM vw_detalhes_livros;
-
-
-exericio 5
-
-CREATE VIEW vw_total_maior_num_paginas AS
-SELECT autor.nome , COUNT(livro.id_livro), MAX(livro.num_paginas) FROM autor JOIN livro ON autor.id_autor = livro.id_autor  GROUP BY autor.nome;
- 
- 
- SELECT * FROM vw_total_maior_num_paginas;
